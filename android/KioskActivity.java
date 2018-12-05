@@ -26,6 +26,7 @@ import android.content.IntentFilter;
 import android.os.PowerManager;
 
 import java.lang.reflect.Method;
+import jk.cordova.plugin.kiosk.OnScreenOffReceiver;
 
 public class KioskActivity extends CordovaActivity {
 
@@ -44,7 +45,7 @@ public class KioskActivity extends CordovaActivity {
         super.init();
         loadUrl(launchUrl);
     }
-    
+
     protected void onStart() {
         super.onStart();
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
