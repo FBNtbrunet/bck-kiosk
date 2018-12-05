@@ -220,7 +220,7 @@ public class KioskActivity extends CordovaActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){
-                wakeUpDevice(this.kiosk);
+                this.wakeUpDevice();
             }
         }
     
@@ -235,10 +235,7 @@ public class KioskActivity extends CordovaActivity {
     
             // ... and release again
             wakeLock.release();
-        }
-    
-    
+        }    
     }
-
 }
 
