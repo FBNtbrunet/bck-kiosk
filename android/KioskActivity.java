@@ -43,6 +43,7 @@ public class KioskActivity extends CordovaActivity {
             sp.edit().putBoolean(PREF_KIOSK_MODE, true).commit();
             addOverlay();
         }
+        // getWindow().addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
         running = true;
     }
     //http://stackoverflow.com/questions/7569937/unable-to-add-window-android-view-viewrootw44da9bc0-permission-denied-for-t
@@ -144,6 +145,11 @@ public class KioskActivity extends CordovaActivity {
         am.moveTaskToFront(getTaskId(), 1);
         sendBroadcast(new Intent("android.intent.action.CLOSE_SYSTEM_DIALOGS"));
         collapseNotifications();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+       return true;
     }
 
     @Override
