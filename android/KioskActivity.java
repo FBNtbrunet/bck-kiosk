@@ -22,6 +22,9 @@ import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 
+import android.content.IntentFilter;
+import android.os.PowerManager;
+
 import java.lang.reflect.Method;
 
 public class KioskActivity extends CordovaActivity {
@@ -33,6 +36,15 @@ public class KioskActivity extends CordovaActivity {
     ActivityManager am;
     String TAG = "KioskActivity";
 
+    private PowerManager.WakeLock wakeLock;
+    private OnScreenOffReceiver onScreenOffReceiver;
+
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        super.init();
+        loadUrl(launchUrl);
+    }
+    
     protected void onStart() {
         super.onStart();
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
@@ -43,7 +55,6 @@ public class KioskActivity extends CordovaActivity {
             sp.edit().putBoolean(PREF_KIOSK_MODE, true).commit();
             addOverlay();
         }
-        // getWindow().addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
         running = true;
     }
     //http://stackoverflow.com/questions/7569937/unable-to-add-window-android-view-viewrootw44da9bc0-permission-denied-for-t
@@ -96,12 +107,6 @@ public class KioskActivity extends CordovaActivity {
     protected void onStop() {
         super.onStop();
         running = false;
-    }
-
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        super.init();
-        loadUrl(launchUrl);
     }
 
     private void collapseNotifications()
@@ -186,5 +191,22 @@ public class KioskActivity extends CordovaActivity {
             return true;
         }
     }
+
+    private void registerKioskModeScreenOffReceiver() {
+        // register screen off receiver
+        final IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
+        onScreenOffReceiver = new OnScreenOffReceiver();
+        registerReceiver(onScreenOffReceiver, filter);
+    }
+
+    public PowerManager.WakeLock getWakeLock() {
+        if(wakeLock == null) {
+            // lazy loading: first call, create wakeLock via PowerManager.
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "wakeup");
+        }
+        return wakeLock;
+    }
+
 }
 
