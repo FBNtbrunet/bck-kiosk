@@ -26,7 +26,6 @@ import android.content.IntentFilter;
 import android.os.PowerManager;
 
 import java.lang.reflect.Method;
-import jk.cordova.plugin.kiosk.OnScreenOffReceiver;
 
 public class KioskActivity extends CordovaActivity {
 
