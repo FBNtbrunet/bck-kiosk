@@ -1,237 +1,123 @@
 package jk.cordova.plugin.kiosk;
 
-import android.annotation.TargetApi;
+import android.app.ActionBar;
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.graphics.PixelFormat;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import org.apache.cordova.*;
-
-import android.os.Handler;
-import android.os.Looper;
-import android.preference.PreferenceManager;
-import android.provider.Settings;
-import android.util.Log;
-import android.view.Gravity;
-import android.view.KeyEvent;
-import android.view.MotionEvent;
-import android.view.ViewGroup;
+import android.widget.*;
+import android.view.Window;
+import android.view.View;
 import android.view.WindowManager;
-
-import android.content.IntentFilter;
-import android.os.PowerManager;
-
-import java.lang.reflect.Method;
-
-import android.content.BroadcastReceiver;
-
+import android.view.KeyEvent;
+import android.view.ViewGroup.LayoutParams;
+import java.lang.Integer;
+import java.util.Collections;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class KioskActivity extends CordovaActivity {
 
-    private static final String PREF_KIOSK_MODE = "pref_kiosk_mode";
-    private static final int REQUEST_CODE = 123467;
-    public static boolean running = false;
-    Object statusBarService;
-    ActivityManager am;
-    String TAG = "KioskActivity";
+    public static volatile boolean running = false;
+    public static volatile Set<Integer> allowedKeys = Collections.EMPTY_SET;
 
-    private PowerManager.WakeLock wakeLock;
-    private OnScreenOffReceiver onScreenOffReceiver;
+    private StatusBarOverlay statusBarOverlay = null;
 
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        super.init();
-        registerKioskModeScreenOffReceiver();
-        loadUrl(launchUrl);
-    }
-
+    @Override
     protected void onStart() {
         super.onStart();
-        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
-        if(Build.VERSION.SDK_INT >= 23) {
-            sp.edit().putBoolean(PREF_KIOSK_MODE, false).commit();
-            checkDrawOverlayPermission();
-        } else {
-            sp.edit().putBoolean(PREF_KIOSK_MODE, true).commit();
-            addOverlay();
-        }
+        System.out.println("KioskActivity started");
         running = true;
     }
-    //http://stackoverflow.com/questions/7569937/unable-to-add-window-android-view-viewrootw44da9bc0-permission-denied-for-t
-    @TargetApi(Build.VERSION_CODES.M)
-    public void checkDrawOverlayPermission() {
-        if (!Settings.canDrawOverlays(this.getApplicationContext())) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivityForResult(intent, REQUEST_CODE);
-        }
-    }
 
-    @TargetApi(Build.VERSION_CODES.M)
     @Override
-    protected void onActivityResult(int requestCode, int resultCode,  Intent data) {
-        if (requestCode == REQUEST_CODE) {
-            SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
-            sp.edit().putBoolean(PREF_KIOSK_MODE, true).commit();
-            if (Settings.canDrawOverlays(this)) {
-                addOverlay();
-            }
-        }
-    }
-    //http://stackoverflow.com/questions/25284233/prevent-status-bar-for-appearing-android-modified?answertab=active#tab-top
-    public void addOverlay() {
-        WindowManager manager = ((WindowManager) getApplicationContext()
-                .getSystemService(Context.WINDOW_SERVICE));
-
-        WindowManager.LayoutParams localLayoutParams = new WindowManager.LayoutParams();
-        localLayoutParams.type = WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
-        localLayoutParams.gravity = Gravity.TOP;
-        localLayoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|
-
-                // this is to enable the notification to recieve touch events
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
-
-                // Draws over status bar
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
-
-        localLayoutParams.width = WindowManager.LayoutParams.MATCH_PARENT;
-        localLayoutParams.height = (int) (50 * getResources()
-                .getDisplayMetrics().scaledDensity);
-        localLayoutParams.format = PixelFormat.TRANSPARENT;
-
-        CustomViewGroup view = new CustomViewGroup(this);
-
-        manager.addView(view, localLayoutParams);
-    }
-
     protected void onStop() {
         super.onStop();
+        System.out.println("KioskActivity stopped");
         running = false;
     }
 
-    private void collapseNotifications()
-    {
-        try
-        {
-            if(statusBarService == null) {
-                statusBarService = getSystemService("statusbar");
-            }
-
-            Class<?> statusBarManager = Class.forName("android.app.StatusBarManager");
-
-            if (Build.VERSION.SDK_INT <= 16)
-            {
-                Method collapseStatusBar = statusBarManager.getMethod("collapse");
-                collapseStatusBar.setAccessible(true);
-                collapseStatusBar.invoke(statusBarService);
-                return;
-            }
-            Method collapseStatusBar = statusBarManager.getMethod("collapsePanels");
-            collapseStatusBar.setAccessible(true);
-            collapseStatusBar.invoke(statusBarService);
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        super.init();
+        
+        if (running) {
+            finish(); // prevent more instances of kiosk activity
         }
-        catch (Exception e)
-        {
-            Log.e(TAG, e.toString());
-        }
-    }
-
-    public void onPause()
-    {
-        super.onPause();
-        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
-        sp.edit().putBoolean(PREF_KIOSK_MODE, true).commit();
-        if(!sp.getBoolean(PREF_KIOSK_MODE, false)) {
-            return;
-        }
-        if(am == null) {
-            am = ((ActivityManager)getSystemService("activity"));
-        }
-        am.moveTaskToFront(getTaskId(), 1);
-        sendBroadcast(new Intent("android.intent.action.CLOSE_SYSTEM_DIALOGS"));
-        collapseNotifications();
+        
+        loadUrl(launchUrl);
+        
+        // https://github.com/apache/cordova-plugin-statusbar/blob/master/src/android/StatusBar.java
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        
+        // https://github.com/hkalina/cordova-plugin-kiosk/issues/14
+        View decorView = getWindow().getDecorView();
+        // Hide the status bar.
+        decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN);
+        // Remember that you should never show the action bar if the
+        // status bar is hidden, so hide that too if necessary.
+        ActionBar actionBar = getActionBar();
+        if (actionBar != null) actionBar.hide();
+        
+        // add overlay to prevent statusbar access by swiping
+        statusBarOverlay = StatusBarOverlay.createOrObtainPermission(this);
     }
 
     @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (statusBarOverlay != null) {
+            statusBarOverlay.destroy(this);
+            statusBarOverlay = null;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+            super.onPause();
+            ActivityManager activityManager = (ActivityManager) getApplicationContext()
+                    .getSystemService(Context.ACTIVITY_SERVICE);
+            activityManager.moveTaskToFront(getTaskId(), 0);
+    }     
+    
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        System.out.println("onKeyDown event: keyCode = " + event.getKeyCode());
+        return ! allowedKeys.contains(event.getKeyCode()); // prevent event from being propagated if not allowed
+    }
+    
+    @Override
+    public void finish() {
+        System.out.println("Never finish...");
+        // super.finish();
+    }
+
+    // http://www.andreas-schrade.de/2015/02/16/android-tutorial-how-to-create-a-kiosk-mode-in-android/
+    @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
-        sp.edit().putBoolean(PREF_KIOSK_MODE, true).commit();
-        if(!sp.getBoolean(PREF_KIOSK_MODE, false)) {
-            return;
+        if(!hasFocus) {
+            System.out.println("Focus lost - closing system dialogs");
+            
+            Intent closeDialog = new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+            sendBroadcast(closeDialog);
+            
+            ActivityManager am = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
+            am.moveTaskToFront(getTaskId(), ActivityManager.MOVE_TASK_WITH_HOME);
+            
+            // sometime required to close opened notification area
+            Timer timer = new Timer();
+            timer.schedule(new TimerTask(){
+                public void run() {
+                    Intent closeDialog = new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+                    sendBroadcast(closeDialog);
+                }
+            }, 500); // 0.5 second
         }
-        if (!hasFocus) {
-            if(am == null) {
-                am = ((ActivityManager)getSystemService("activity"));
-            }
-            am.moveTaskToFront(getTaskId(), 1);
-            sendBroadcast(new Intent("android.intent.action.CLOSE_SYSTEM_DIALOGS"));
-            collapseNotifications();
-        }
-    }
-
-    //http://stackoverflow.com/questions/25284233/prevent-status-bar-for-appearing-android-modified?answertab=active#tab-top
-    public class CustomViewGroup extends ViewGroup {
-
-        public CustomViewGroup(Context context) {
-            super(context);
-        }
-
-        @Override
-        protected void onLayout(boolean changed, int l, int t, int r, int b) {
-        }
-
-        @Override
-        public boolean onInterceptTouchEvent(MotionEvent ev) {
-            return true;
-        }
-    }
-
-    private void registerKioskModeScreenOffReceiver() {
-        // register screen off receiver
-        final IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
-        onScreenOffReceiver = new OnScreenOffReceiver(this);
-        registerReceiver(onScreenOffReceiver, filter);
-    }
-
-    public PowerManager.WakeLock getWakeLock() {
-        if(wakeLock == null) {
-            // lazy loading: first call, create wakeLock via PowerManager.
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "wakeup");
-        }
-        return wakeLock;
-    }
-
-    public class OnScreenOffReceiver extends BroadcastReceiver {
-        private KioskActivity kiosk;
-        public OnScreenOffReceiver(KioskActivity activity) {
-            super();
-            this.kiosk = activity;
-        }
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){
-                this.wakeUpDevice();
-            }
-        }
-    
-        private void wakeUpDevice() {
-            PowerManager.WakeLock wakeLock = this.kiosk.getWakeLock(); 
-            if (wakeLock.isHeld()) {
-                wakeLock.release(); // release old wake lock
-            }
-    
-            // create a new wake lock...
-            wakeLock.acquire();
-    
-            // ... and release again
-            wakeLock.release();
-        }    
     }
 }
-
