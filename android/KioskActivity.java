@@ -157,11 +157,6 @@ public class KioskActivity extends CordovaActivity {
     }
 
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-       return true;
-    }
-
-    @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
