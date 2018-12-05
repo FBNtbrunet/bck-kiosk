@@ -27,6 +27,9 @@ import android.os.PowerManager;
 
 import java.lang.reflect.Method;
 
+import android.content.BroadcastReceiver;
+
+
 public class KioskActivity extends CordovaActivity {
 
     private static final String PREF_KIOSK_MODE = "pref_kiosk_mode";
@@ -195,7 +198,7 @@ public class KioskActivity extends CordovaActivity {
     private void registerKioskModeScreenOffReceiver() {
         // register screen off receiver
         final IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
-        onScreenOffReceiver = new OnScreenOffReceiver();
+        onScreenOffReceiver = new OnScreenOffReceiver(this);
         registerReceiver(onScreenOffReceiver, filter);
     }
 
@@ -209,18 +212,20 @@ public class KioskActivity extends CordovaActivity {
     }
 
     public class OnScreenOffReceiver extends BroadcastReceiver {
-
+        private KioskActivity kiosk;
+        public OnScreenOffReceiver(KioskActivity activity) {
+            super();
+            this.kiosk = activity;
+        }
         @Override
         public void onReceive(Context context, Intent intent) {
             if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){
-                AppContext ctx = (AppContext) context.getApplicationContext();
-                wakeUpDevice(ctx);
-                
+                wakeUpDevice(this.kiosk);
             }
         }
     
-        private void wakeUpDevice(AppContext context) {
-            PowerManager.WakeLock wakeLock = context.getWakeLock(); // get WakeLock reference via AppContext
+        private void wakeUpDevice() {
+            PowerManager.WakeLock wakeLock = this.kiosk.getWakeLock(); 
             if (wakeLock.isHeld()) {
                 wakeLock.release(); // release old wake lock
             }
