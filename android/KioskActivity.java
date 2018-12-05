@@ -45,6 +45,7 @@ public class KioskActivity extends CordovaActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         super.init();
+        registerKioskModeScreenOffReceiver();
         loadUrl(launchUrl);
     }
 
